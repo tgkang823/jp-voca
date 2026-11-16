@@ -446,7 +446,6 @@ body.playing{overflow:hidden}
 .knob{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);pointer-events:none;transition:transform .2s}
 .switch input:checked + .knob{transform:translateX(20px)}
 .sheet-foot{padding-top:16px}
-.diag{margin:10px 0 0;padding:10px 12px;background:var(--note);border-radius:10px;font:13px/1.7 var(--ui);color:var(--text);white-space:pre-wrap;word-break:break-all}
 .ver{font-size:.78rem;color:var(--muted);margin:14px 0 0;text-align:center}
 .vsel{margin-top:10px;width:100%;height:44px;border-radius:12px;border:1px solid var(--line-strong);background:var(--card);color:var(--text);font:inherit;font-size:16px;padding:0 10px}
 .danger{width:100%;height:48px;border-radius:12px;border:1px solid var(--shu);background:transparent;color:var(--shu);font-weight:700}
@@ -499,15 +498,11 @@ body.playing{overflow:hidden}
   <div class="row" style="cursor:auto;display:block"><b>일본어 음성</b><small>발음이 끊기거나 기계음 같으면 ‘고품질’이나 ‘프리미엄’ 음성을 골라 보세요. 고르면 바로 들려 드려요.</small>
     <select id="voiceSel" class="vsel" aria-label="일본어 음성"></select>
   </div>
-  <label class="row"><span><b>무음 모드에서도 소리 내기</b><small>아이폰을 무음 모드로 해 둬도 발음이 나와요. 발음이 나오는 동안 다른 앱의 음악은 잠시 멈출 수 있어요.</small></span><span class="switch"><input type="checkbox" data-set="silentPlay"><span class="knob"></span></span></label>
+  <div class="row" style="cursor:auto"><span><b>읽는 방식</b><small>‘후리가나대로’는 화면의 읽기 그대로 발음해요. ‘자연스럽게’는 억양이 더 자연스럽지만 가끔 다르게 읽을 수 있어요.</small></span><div class="seg sm" id="readSeg"><button type="button" data-readmode="exact">후리가나대로</button><button type="button" data-readmode="natural">자연스럽게</button></div></div>
   <label class="row"><span><b>천천히 읽기</b><small>발음 듣기 속도를 느리게 해요.</small></span><span class="switch"><input type="checkbox" data-set="slow"><span class="knob"></span></span></label>
   <div class="row" style="cursor:auto"><span><b>카드 앞면</b><small>복습 카드에서 먼저 보여 줄 쪽이에요.</small></span><div class="seg sm" id="frontSeg"><button type="button" data-front="ja">일본어</button><button type="button" data-front="ko">뜻</button></div></div>
   <div class="row" style="cursor:auto"><span><b>한 번에 볼 카드</b><small>복습과 카드 공부를 이만큼씩 끊어서 해요.</small></span><div class="seg sm" id="sessSeg"><button type="button" data-sesssize="10">10</button><button type="button" data-sesssize="20">20</button><button type="button" data-sesssize="30">30</button><button type="button" data-sesssize="0">전체</button></div></div>
   <div class="row" style="cursor:auto"><span><b>하루 새 단어</b><small>오늘의 복습에 새로 섞을 단어 수예요.</small></span><div class="seg sm" id="newSeg"><button type="button" data-newper="5">5</button><button type="button" data-newper="10">10</button><button type="button" data-newper="20">20</button><button type="button" data-newper="30">30</button></div></div>
-  <div class="row" style="cursor:auto;display:block"><b>소리 진단</b><small>소리가 안 나거나 무음 모드에서 들리지 않을 때 눌러 보세요. 결과 화면을 캡처해서 보내 주시면 원인을 찾을 수 있어요.</small>
-    <button type="button" class="btn outline block" style="margin-top:10px;height:46px" data-act="diag">소리 진단하기</button>
-    <pre id="diagOut" class="diag" hidden></pre>
-  </div>
   <div class="sheet-foot">
     <button type="button" class="danger" id="resetBtn" data-act="reset">학습 기록 지우기</button>
     <p class="fine">‘학습 기록 지우기’는 복습 기록과 오답 노트를 지워요. 즐겨찾기는 그대로 남아요.</p>
@@ -2480,7 +2475,7 @@ const scopeLabel = s => `${catLabel(s.cat)}${s.cat !== 'all' ? ' / ' + groupName
 
 /* ---------- state & storage ---------- */
 const KEY = 'jp-vocab-v2', OLD = 'jp-vocab-v1';
-const settings = { furi:true, hideMeaning:false, showEx:true, slow:false, hideLearned:false, autoSpeak:false, front:'ja', newPerDay:10, palette:'matcha', fontSize:'m', voiceURI:'', silentPlay:true, sessionSize:20, expand:false, listenMeaning:true, listenExample:true };
+const settings = { furi:true, hideMeaning:false, showEx:true, slow:false, hideLearned:false, autoSpeak:false, front:'ja', newPerDay:10, palette:'matcha', fontSize:'m', voiceURI:'', readMode:'exact', sessionSize:20, expand:false, listenMeaning:true, listenExample:true };
 let srs = {}, days = [], counts = {}, intro = {}, fav = {}, wrong = {};
 let undoStack = [], player = null, pendingJump = null;
 const ui = { cat:'basic', group:'all', level:'all', compact:false };
@@ -2598,55 +2593,9 @@ function fillVoiceSelect(){
   sel.value = settings.voiceURI && ja.some(v => v.voiceURI === settings.voiceURI) ? settings.voiceURI : '';
 }
 if('speechSynthesis' in window){ findVoice(); try{ speechSynthesis.addEventListener('voiceschanged', findVoice); }catch(e){ speechSynthesis.onvoiceschanged = findVoice; } }
-/* iPhone/iPad: let speech play even when the Ring/Silent switch is on silent.
-   Ask for the "playback" audio session (Safari 17+) and play a moment of silence through a
-   media element inside the tap; that moves the page out of the session the switch mutes. */
-const SILENT_WAV = 'data:audio/wav;base64,UklGRsQPAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YaAPAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA';
-const APP_VERSION = '2026-11-16 (3)';
-const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-let silentEl = null, silentStopTimer = 0, lastMediaErr = '';
-function makeSilent(){
-  silentEl = new Audio(SILENT_WAV);
-  silentEl.loop = true; silentEl.preload = 'auto';
-  silentEl.setAttribute('playsinline', ''); silentEl.setAttribute('webkit-playsinline', '');
-}
-/* keeps a silent, looping media element playing while speech is in use, so iOS keeps the page
-   in the "playback" session that ignores the silent switch; stops 20 s after the last speech */
-function unlockAudio(){
-  try{ if(navigator.audioSession) navigator.audioSession.type = settings.silentPlay ? 'playback' : 'auto'; }catch(e){}
-  if(!IS_IOS || !settings.silentPlay){ if(silentEl && !silentEl.paused) silentEl.pause(); return; }
-  try{
-    if(!silentEl) makeSilent();
-    if(silentEl.paused){ const p = silentEl.play(); if(p && p.catch) p.then(() => { lastMediaErr = ''; }, e => { lastMediaErr = e && e.name || String(e); }); }
-    clearTimeout(silentStopTimer);
-    silentStopTimer = setTimeout(() => { try{ silentEl.pause(); }catch(e){} }, 20000);
-  }catch(e){ lastMediaErr = e && e.name || String(e); }
-}
-document.addEventListener('visibilitychange', () => { if(document.hidden && silentEl && !silentEl.paused) silentEl.pause(); });
-async function runDiag(){
-  const lines = [], el = document.getElementById('diagOut');
-  let inFrame = false; try{ inFrame = window.self !== window.top; }catch(e){ inFrame = true; }
-  lines.push('버전: ' + APP_VERSION);
-  lines.push('실행 위치: ' + (navigator.standalone ? '홈 화면 앱' : inFrame ? 'Claude 화면 안' : '브라우저'));
-  lines.push('기기: ' + (IS_IOS ? 'iPhone/iPad' : '그 밖의 기기'));
-  lines.push('무음 모드 재생 설정: ' + (settings.silentPlay ? '켜짐' : '꺼짐'));
-  lines.push('오디오 세션 기능: ' + (navigator.audioSession ? '있음' : '없음 (iOS 17 미만이거나 이 화면에서 지원 안 함)'));
-  let media = '시험 안 함 (아이폰·아이패드에서만 시험해요)';
-  if(IS_IOS){
-    try{ if(navigator.audioSession) navigator.audioSession.type = 'playback'; }catch(e){}
-    try{ if(!silentEl) makeSilent(); silentEl.currentTime = 0; await silentEl.play(); media = '성공'; }
-    catch(e){ media = '실패 (' + (e && e.name || e) + ')'; }
-  }
-  lines.push('무음 소리 재생: ' + media);
-  if(navigator.audioSession) lines.push('오디오 세션 상태: ' + navigator.audioSession.type + (navigator.audioSession.state ? ', ' + navigator.audioSession.state : ''));
-  const ja = voicesFor(/^ja([-_]|$)/i);
-  lines.push('일본어 음성: ' + ja.length + '개, 사용 중: ' + (jaVoice ? voiceLabel(jaVoice) : '없음'));
-  if(el){ el.hidden = false; el.textContent = lines.join('\n'); }
-  speak('音声テストです。');
-}
+const APP_VERSION = '2026-11-16 (5)';
 let speakTimer = 0;
 function speak(text){
-  unlockAudio();
   if(!('speechSynthesis' in window)){ toast('이 브라우저에서는 발음 듣기를 쓸 수 없어요.'); return; }
   if(!jaVoice) findVoice();
   clearTimeout(speakTimer);
@@ -2664,7 +2613,6 @@ function speak(text){
   if(!jaVoice && !voiceWarned && speechSynthesis.getVoices().length){ voiceWarned = true; toast('이 기기에서 일본어 음성을 찾지 못했어요. 기기 설정에서 일본어 음성을 추가하면 정확하게 들려요.'); }
 }
 function speakAsync(text, lang){
-  unlockAudio();
   return new Promise(res => {
     if(!('speechSynthesis' in window) || !text){ res(); return; }
     let done = false, tm = 0;
@@ -2686,7 +2634,14 @@ function resumeBtn(extraStyle){
   const n = session.queue.length, done = session.idx;
   return `<button type="button" class="btn outline block resume" data-act="resume"${extraStyle ? ` style="${extraStyle}"` : ''}><span class="rs-ic">${ICON.playSm}</span><span class="rs-txt"><b>이어서 하기</b><small>${esc(session.title)}: ${n}장 중 ${done}장 했어요</small><span class="rs-bar"><span style="width:${Math.round(done / n * 100)}%"></span></span></span></button>`;
 }
+const kanaSay = s => kana(s).replace(/\s*→\s*/g,'、').replace(/[・\/]/g,'、').replace(/〜/g,'').replace(/\s+/g,'');
 function sayText(it, which){
+  /* 'exact' (default): hand the engine our furigana readings, so what you hear always matches the card.
+     'natural': keep kanji for smoother pitch accent, with readings swapped in only where a misreading is likely. */
+  if(settings.readMode !== 'natural'){
+    if(which === 'e') return kana(it.e);
+    return it.say || kanaSay(it.w);
+  }
   if(which === 'e') return it.se || plain(it.e);
   if(it.say) return it.say;
   if(it.sw) return it.sw;
@@ -3368,6 +3323,7 @@ function syncSegs(){
   document.querySelectorAll('[data-front]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.front === settings.front)));
   document.querySelectorAll('[data-newper]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.newper === settings.newPerDay)));
   document.querySelectorAll('[data-sesssize]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.sesssize === settings.sessionSize)));
+  document.querySelectorAll('[data-readmode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.readmode === settings.readMode)));
 }
 const resetBtn = $('#resetBtn');
 let resetArmed = false, resetTimer = 0;
@@ -3424,6 +3380,8 @@ document.addEventListener('click', e => {
   }
   const go = t.closest('[data-go]');
   if(go){ const v = go.dataset.go; if(v === view){ if(v === 'review' && session) session.active = false; if(v === 'quiz') quiz = null; render(); window.scrollTo(0,0); } else location.hash = v; return; }
+  const rmb = t.closest('[data-readmode]');
+  if(rmb){ settings.readMode = rmb.dataset.readmode; save(); syncSegs(); speak(settings.readMode === 'natural' ? '私の家族は四人です。' : 'わたしのかぞくはよにんです。'); return; }
   const fz = t.closest('button[data-fs]');
   if(fz){ settings.fontSize = fz.dataset.fs; save(); applyPalette(); return; }
   const pp = t.closest('[data-palette-pick]');
@@ -3530,7 +3488,6 @@ function doAction(a){
     }
     case 'showSentence': if(quiz && !quiz.done){ quiz.qs[quiz.idx].shown = true; renderQuiz(); } break;
     case 'toggleSlow': settings.slow = !settings.slow; save(); syncSegs(); if(quiz && !quiz.done){ renderQuiz(); speakQuestion(); } break;
-    case 'diag': runDiag(); break;
     case 'startQuiz': startQuiz(); break;
     case 'nextQuestion': nextQuestion(); break;
     case 'exitQuiz': quiz = null; render(); break;
