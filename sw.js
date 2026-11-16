@@ -1,6 +1,6 @@
 // 일본어 단어장: 오프라인 실행용 서비스 워커
 // 단어장을 고친 뒤에는 아래 버전 이름을 바꾸면 예전 캐시가 정리돼요.
-const CACHE = 'jp-vocab-v1';
+const CACHE = 'jp-vocab-v3';
 const CORE = ['./', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
