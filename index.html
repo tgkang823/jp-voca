@@ -446,6 +446,8 @@ body.playing{overflow:hidden}
 .knob{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);pointer-events:none;transition:transform .2s}
 .switch input:checked + .knob{transform:translateX(20px)}
 .sheet-foot{padding-top:16px}
+.diag{margin:10px 0 0;padding:10px 12px;background:var(--note);border-radius:10px;font:13px/1.7 var(--ui);color:var(--text);white-space:pre-wrap;word-break:break-all}
+.ver{font-size:.78rem;color:var(--muted);margin:14px 0 0;text-align:center}
 .vsel{margin-top:10px;width:100%;height:44px;border-radius:12px;border:1px solid var(--line-strong);background:var(--card);color:var(--text);font:inherit;font-size:16px;padding:0 10px}
 .danger{width:100%;height:48px;border-radius:12px;border:1px solid var(--shu);background:transparent;color:var(--shu);font-weight:700}
 .danger.armed{background:var(--shu);color:#fff}
@@ -502,11 +504,16 @@ body.playing{overflow:hidden}
   <div class="row" style="cursor:auto"><span><b>카드 앞면</b><small>복습 카드에서 먼저 보여 줄 쪽이에요.</small></span><div class="seg sm" id="frontSeg"><button type="button" data-front="ja">일본어</button><button type="button" data-front="ko">뜻</button></div></div>
   <div class="row" style="cursor:auto"><span><b>한 번에 볼 카드</b><small>복습과 카드 공부를 이만큼씩 끊어서 해요.</small></span><div class="seg sm" id="sessSeg"><button type="button" data-sesssize="10">10</button><button type="button" data-sesssize="20">20</button><button type="button" data-sesssize="30">30</button><button type="button" data-sesssize="0">전체</button></div></div>
   <div class="row" style="cursor:auto"><span><b>하루 새 단어</b><small>오늘의 복습에 새로 섞을 단어 수예요.</small></span><div class="seg sm" id="newSeg"><button type="button" data-newper="5">5</button><button type="button" data-newper="10">10</button><button type="button" data-newper="20">20</button><button type="button" data-newper="30">30</button></div></div>
+  <div class="row" style="cursor:auto;display:block"><b>소리 진단</b><small>소리가 안 나거나 무음 모드에서 들리지 않을 때 눌러 보세요. 결과 화면을 캡처해서 보내 주시면 원인을 찾을 수 있어요.</small>
+    <button type="button" class="btn outline block" style="margin-top:10px;height:46px" data-act="diag">소리 진단하기</button>
+    <pre id="diagOut" class="diag" hidden></pre>
+  </div>
   <div class="sheet-foot">
     <button type="button" class="danger" id="resetBtn" data-act="reset">학습 기록 지우기</button>
     <p class="fine">‘학습 기록 지우기’는 복습 기록과 오답 노트를 지워요. 즐겨찾기는 그대로 남아요.</p>
     <p class="fine">복습 간격: ‘모름’은 다음 날, ‘애매’는 지금 간격의 절반 뒤, ‘앎’은 1일 → 3일 → 1주 → 2주 → 1달 → 2달처럼 점점 길게 다시 보여 줘요. 2주 간격에 도달하면 외운 단어(<span lang="ja">済</span>)로 표시돼요.</p>
     <p class="fine">N5·N4 표시는 시중 학습 자료를 참고한 대략적인 구분이에요. JLPT는 공식 단어 목록을 공개하지 않아요.</p>
+    <p class="ver" id="verLine"></p>
     <p class="fine">발음은 기기에 설치된 일본어 음성으로 재생돼요. 학습 기록과 설정은 지금 쓰는 기기의 브라우저에만 저장돼요.</p>
   </div>
 </div>
@@ -2594,17 +2601,48 @@ if('speechSynthesis' in window){ findVoice(); try{ speechSynthesis.addEventListe
 /* iPhone/iPad: let speech play even when the Ring/Silent switch is on silent.
    Ask for the "playback" audio session (Safari 17+) and play a moment of silence through a
    media element inside the tap; that moves the page out of the session the switch mutes. */
-const SILENT_WAV = 'data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA';
+const SILENT_WAV = 'data:audio/wav;base64,UklGRsQPAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YaAPAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA';
+const APP_VERSION = '2026-11-16 (3)';
 const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-let silentEl = null;
+let silentEl = null, silentStopTimer = 0, lastMediaErr = '';
+function makeSilent(){
+  silentEl = new Audio(SILENT_WAV);
+  silentEl.loop = true; silentEl.preload = 'auto';
+  silentEl.setAttribute('playsinline', ''); silentEl.setAttribute('webkit-playsinline', '');
+}
+/* keeps a silent, looping media element playing while speech is in use, so iOS keeps the page
+   in the "playback" session that ignores the silent switch; stops 20 s after the last speech */
 function unlockAudio(){
   try{ if(navigator.audioSession) navigator.audioSession.type = settings.silentPlay ? 'playback' : 'auto'; }catch(e){}
-  if(!IS_IOS || !settings.silentPlay) return;
+  if(!IS_IOS || !settings.silentPlay){ if(silentEl && !silentEl.paused) silentEl.pause(); return; }
   try{
-    if(!silentEl){ silentEl = new Audio(SILENT_WAV); silentEl.setAttribute('playsinline', ''); silentEl.preload = 'auto'; }
-    silentEl.currentTime = 0;
-    const p = silentEl.play(); if(p && p.catch) p.catch(() => {});
-  }catch(e){}
+    if(!silentEl) makeSilent();
+    if(silentEl.paused){ const p = silentEl.play(); if(p && p.catch) p.then(() => { lastMediaErr = ''; }, e => { lastMediaErr = e && e.name || String(e); }); }
+    clearTimeout(silentStopTimer);
+    silentStopTimer = setTimeout(() => { try{ silentEl.pause(); }catch(e){} }, 20000);
+  }catch(e){ lastMediaErr = e && e.name || String(e); }
+}
+document.addEventListener('visibilitychange', () => { if(document.hidden && silentEl && !silentEl.paused) silentEl.pause(); });
+async function runDiag(){
+  const lines = [], el = document.getElementById('diagOut');
+  let inFrame = false; try{ inFrame = window.self !== window.top; }catch(e){ inFrame = true; }
+  lines.push('버전: ' + APP_VERSION);
+  lines.push('실행 위치: ' + (navigator.standalone ? '홈 화면 앱' : inFrame ? 'Claude 화면 안' : '브라우저'));
+  lines.push('기기: ' + (IS_IOS ? 'iPhone/iPad' : '그 밖의 기기'));
+  lines.push('무음 모드 재생 설정: ' + (settings.silentPlay ? '켜짐' : '꺼짐'));
+  lines.push('오디오 세션 기능: ' + (navigator.audioSession ? '있음' : '없음 (iOS 17 미만이거나 이 화면에서 지원 안 함)'));
+  let media = '시험 안 함 (아이폰·아이패드에서만 시험해요)';
+  if(IS_IOS){
+    try{ if(navigator.audioSession) navigator.audioSession.type = 'playback'; }catch(e){}
+    try{ if(!silentEl) makeSilent(); silentEl.currentTime = 0; await silentEl.play(); media = '성공'; }
+    catch(e){ media = '실패 (' + (e && e.name || e) + ')'; }
+  }
+  lines.push('무음 소리 재생: ' + media);
+  if(navigator.audioSession) lines.push('오디오 세션 상태: ' + navigator.audioSession.type + (navigator.audioSession.state ? ', ' + navigator.audioSession.state : ''));
+  const ja = voicesFor(/^ja([-_]|$)/i);
+  lines.push('일본어 음성: ' + ja.length + '개, 사용 중: ' + (jaVoice ? voiceLabel(jaVoice) : '없음'));
+  if(el){ el.hidden = false; el.textContent = lines.join('\n'); }
+  speak('音声テストです。');
 }
 let speakTimer = 0;
 function speak(text){
@@ -3316,6 +3354,7 @@ function openSheet(id){
   if(id === 'settingsSheet'){
     document.querySelectorAll('#settingsSheet [data-set]').forEach(inp => { inp.checked = !!settings[inp.dataset.set]; });
     syncSegs(); disarmReset(); findVoice();
+    const vl = document.getElementById('verLine'); if(vl) vl.textContent = '버전 ' + APP_VERSION;
   }
   openSheetId = id;
   $('#' + id).classList.add('open'); $('#backdrop').classList.add('open');
@@ -3491,6 +3530,7 @@ function doAction(a){
     }
     case 'showSentence': if(quiz && !quiz.done){ quiz.qs[quiz.idx].shown = true; renderQuiz(); } break;
     case 'toggleSlow': settings.slow = !settings.slow; save(); syncSegs(); if(quiz && !quiz.done){ renderQuiz(); speakQuestion(); } break;
+    case 'diag': runDiag(); break;
     case 'startQuiz': startQuiz(); break;
     case 'nextQuestion': nextQuestion(); break;
     case 'exitQuiz': quiz = null; render(); break;
@@ -3579,7 +3619,9 @@ render();
 </script>
 <script>
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
+  });
 }
 </script>
 </body>

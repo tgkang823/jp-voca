@@ -1,10 +1,12 @@
 // 일본어 단어장: 오프라인 실행용 서비스 워커
 // 단어장을 고친 뒤에는 아래 버전 이름을 바꾸면 예전 캐시가 정리돼요.
-const CACHE = 'jp-vocab-v3';
+const CACHE = 'jp-vocab-v4';
 const CORE = ['./', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE)
+    .then(c => c.addAll(CORE.map(u => new Request(u, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -16,9 +18,9 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
-  // 페이지: 인터넷이 되면 새 버전을 받고, 안 되면 저장해 둔 버전을 열어요.
+  // 페이지: 인터넷이 되면 저장본을 거치지 않고 항상 최신 파일을 받고, 안 되면 저장해 둔 버전을 열어요.
   if (req.mode === 'navigate') {
-    e.respondWith(fetch(req)
+    e.respondWith(fetch(req, { cache: 'no-store' })
       .then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put('index.html', copy)); return res; })
       .catch(() => caches.match('index.html')));
     return;
