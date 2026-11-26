@@ -490,6 +490,20 @@ body.no-omit .omit{display:none}
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
 }
+
+/* 2026-11 polish: reading comfort, list rows that open in place, learn flow */
+.jph{display:inline-block;max-width:100%;vertical-align:baseline}
+.word{font-size:calc(1.55rem * var(--fs))} .word.long{font-size:calc(1.3rem * var(--fs))} .word.xlong{font-size:calc(1.15rem * var(--fs))}
+.item .side{flex-direction:row;align-items:center;gap:2px} .item .side .favbtn{order:-1}
+.mbar .k{background:var(--ink)} .mbar .l{background:var(--ink-soft);opacity:.45}
+.crow{cursor:pointer;gap:6px;padding-left:8px} .crow.open{background:var(--note)} .crow .say,.crow .favbtn{width:30px}
+.c-chev{flex:none;display:grid;place-items:center;width:14px;color:var(--muted);transition:transform .2s} .c-chev svg{width:14px;height:14px} .crow.open .c-chev{transform:rotate(180deg)}
+.cexp{padding:4px 14px 14px 16px;background:var(--note);animation:rise .2s ease} .cexp > :first-child{margin-top:0}
+.lcard{padding:18px 18px 16px;text-align:left} .leye{margin:0 0 2px;font-size:.78rem;font-weight:800;color:var(--shu)}
+.lword{font-family:var(--jp);font-weight:600;font-size:calc(2rem * var(--fs));line-height:1.75;color:var(--ink);word-break:keep-all;overflow-wrap:anywhere}
+.lrow{display:flex;align-items:center;gap:6px;margin:2px 0 10px} .lmean{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;font-size:calc(1.12rem * var(--fs));font-weight:800;color:var(--text)}
+.lnote{margin:12px 0 0;padding:10px 12px;border-radius:12px;background:var(--note);font-size:calc(.9rem * var(--fs));line-height:1.65;color:var(--text)}
+.lbtns{display:flex;gap:10px;margin-top:14px} .lbtns .btn{flex:1} .lbtns .btn.outline{flex:0 0 30%}
 </style>
 </head>
 <body>
@@ -570,8 +584,8 @@ const ICON = {
   book: SVG('<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/>', 22),
   cards: SVG('<rect x="7" y="3" width="13" height="16" rx="2"/><path d="M4 7v11a3 3 0 0 0 3 3h9"/>', 22),
   cardsSm: SVG('<rect x="7" y="3" width="13" height="16" rx="2"/><path d="M4 7v11a3 3 0 0 0 3 3h9"/>', 16),
-  quizSm: SVG('<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7"/><path d="M12 17.3v.2"/>', 16),
-  quiz: SVG('<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7"/><path d="M12 17.3v.2"/>', 22),
+  quizSm: SVG('<path d="M10 6h10M10 12h10M10 18h10"/><path d="m3.5 6 1.3 1.3L7 5M3.5 12l1.3 1.3L7 11M3.5 18l1.3 1.3L7 17"/>', 16),
+  quiz: SVG('<path d="M10 6h10M10 12h10M10 18h10"/><path d="m3.5 6 1.3 1.3L7 5M3.5 12l1.3 1.3L7 11M3.5 18l1.3 1.3L7 17"/>', 22),
   search: SVG('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'),
   gear: SVG('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'),
   close: SVG('<path d="M6 6l12 12M18 6 6 18"/>'),
@@ -596,7 +610,35 @@ const kana = s => s.replace(RX,'$2');
 const hasKanji = s => s.indexOf('{') >= 0;
 /* [を] in a casual dialogue line = a particle the speaker leaves out; shown faintly as (を), never spoken */
 const stripOm = s => s.replace(/\[[^\]]+\]/g, '');
-const rubyD = s => ruby(s).replace(/\[([^\]]+)\]/g, '<span class="omit">($1)</span>');
+/* phrase-level line breaks: a zero-width space marks the only places a Japanese line may wrap —
+   after 、。！？ and where a new word starts after hiragana (not inside 食べ物, お土産, ご飯) */
+const B_PART = 'はがをにでともへのやか';
+function brkJa(s){
+  const tk = s.match(/\{[^{}]*\}|\[[^\]]*\]|[\s\S]/g) || [];
+  const ty = x => x[0] === '{' ? 'K' : x[0] === '[' ? 'H' : /[ぁ-ゖ]/.test(x) ? 'H' : /[ァ-ヺー]/.test(x) ? 'T' : /[、。！？…]/.test(x) ? 'P' : 'O';
+  const at = i => tk[i] === 'ー' && i > 0 ? at(i - 1) : ty(tk[i]);       // a long-vowel mark belongs to whatever comes before it
+  let out = '';
+  for(let i = 0; i < tk.length; i++){
+    const cur = tk[i], c = at(i);
+    if(i > 0){
+      const p = at(i - 1);
+      if(p === 'P' && c !== 'P' && !/[」』）)\s]/.test(cur)) out += '\u200b';
+      else if(p === 'H' && (c === 'K' || c === 'T')){
+        let j = i - 1; while(j >= 0 && at(j) === 'H') j--;
+        const run = tk.slice(j + 1, i), before = j >= 0 ? at(j) : '', last = run[run.length - 1].replace(/[\[\]]/g, '');
+        if(run.length === 1 && before === 'K' && !B_PART.includes(last)){ /* okurigana inside a compound */ }
+        else if(/^\{(様|達)\|/.test(cur)){ /* suffix: どちら様, 私たち */ }
+        else if(/^(この|その|あの|どの|こんな|そんな|あんな|どんな)$/.test(run.join('')) && before !== 'K' && before !== 'T'){ /* この道, そんな話 stay together */ }
+        else if(last === 'お' || last === 'ご'){ if(run.length > 1 && run[run.length - 1].length === 1) out = out.slice(0, -1) + '\u200b' + last; }
+        else out += '\u200b';
+      }
+    }
+    out += cur;
+  }
+  return out;
+}
+/* each phrase is an inline-block, so it moves to the next line as a whole (a phrase wider than the line still wraps inside) */
+const rubyD = s => brkJa(s).split('\u200b').map(ch => `<span class="jph">${ruby(ch).replace(/\[([^\]]+)\]/g, '<span class="omit">($1)</span>')}</span>`).join('\u200b');
 /* ---------- conjugation engine (ruby markup aware: the last kana is always outside {}) ---------- */
 const CJ_A = { う:'わ', つ:'た', る:'ら', む:'ま', ぶ:'ば', ぬ:'な', く:'か', ぐ:'が', す:'さ' };
 const CJ_I = { う:'い', つ:'ち', る:'り', む:'み', ぶ:'び', ぬ:'に', く:'き', ぐ:'ぎ', す:'し' };
@@ -708,7 +750,7 @@ const KEY = 'jp-vocab-v2', OLD = 'jp-vocab-v1';
 const settings = { furi:true, hideMeaning:false, showEx:true, slow:false, hideLearned:false, autoSpeak:false, front:'ja', newPerDay:10, palette:'matcha', fontSize:'m', voiceURI:'', readMode:'exact', dlgReg:'p', showOmit:true, sessionSize:20, expand:false, listenMeaning:true, listenExample:true };
 let srs = {}, days = [], counts = {}, intro = {}, fav = {}, wrong = {};
 let undoStack = [], player = null, pendingJump = null;
-const ui = { cat:'basic', group:'all', level:'all', compact:false };
+const ui = { cat:'basic', group:'all', level:'all', compact:true };
 const rv = { cat:'basic', group:'all', level:'N5' };
 const qz = { cat:'basic', group:'all', level:'all', type:'meaning', count:10 };
 let session = null, quiz = null, revealed = false;
@@ -731,7 +773,7 @@ function load(){
       if(d.intro && typeof d.intro === 'object') intro = d.intro;
       if(d.fav && typeof d.fav === 'object') Object.keys(d.fav).forEach(id => { if(BYID[id]) fav[id] = 1; });
       if(d.wrong && typeof d.wrong === 'object') Object.keys(d.wrong).forEach(id => { const v = d.wrong[id]; if(BYID[id] && v && typeof v.n === 'number') wrong[id] = { n:v.n, d:v.d || 0 }; });
-      if(d.ui){ Object.assign(ui, d.ui); if(!validScope(ui) || ui.cat === 'all'){ ui.cat = 'basic'; ui.group = 'all'; } }
+      if(d.ui){ Object.assign(ui, d.ui); if(!validScope(ui) || ui.cat === 'all'){ ui.cat = 'basic'; ui.group = 'all'; } if(d.uiv !== 2) ui.compact = true; }
       if(d.rv){ Object.assign(rv, d.rv); if(!validScope(rv)){ rv.cat = 'basic'; rv.group = 'all'; } }
       if(d.qz){ Object.assign(qz, d.qz); if(!validScope(qz)){ qz.cat = 'basic'; qz.group = 'all'; } }
       if(d.session && Array.isArray(d.session.queue)){
@@ -753,7 +795,7 @@ function load(){
 }
 function trimMap(m){ const t = today(); const out = {}; Object.keys(m).forEach(k => { if(+k > t - 60) out[k] = m[k]; }); return out; }
 function save(){
-  try{ localStorage.setItem(KEY, JSON.stringify({ settings, srs, days:days.slice(-400), counts:trimMap(counts), intro:trimMap(intro), fav, wrong, ui, rv, qz, session })); }catch(e){}
+  try{ localStorage.setItem(KEY, JSON.stringify({ uiv:2, settings, srs, days:days.slice(-400), counts:trimMap(counts), intro:trimMap(intro), fav, wrong, ui, rv, qz, session })); }catch(e){}
 }
 
 /* ---------- spaced repetition ---------- */
@@ -823,7 +865,7 @@ function fillVoiceSelect(){
   sel.value = settings.voiceURI && ja.some(v => v.voiceURI === settings.voiceURI) ? settings.voiceURI : '';
 }
 if('speechSynthesis' in window){ findVoice(); try{ speechSynthesis.addEventListener('voiceschanged', findVoice); }catch(e){ speechSynthesis.onvoiceschanged = findVoice; } }
-const APP_VERSION = '2026-11-26 (2)';
+const APP_VERSION = '2026-11-27 (1)';
 let speakTimer = 0;
 function speak(text){
   if(!('speechSynthesis' in window)){ toast('이 브라우저에서는 발음 듣기를 쓸 수 없어요.'); return; }
@@ -946,7 +988,15 @@ function itemHTML(it, crumb){
   </article>`;
 }
 function rowHTML(it){
-  return `<div class="crow" data-i="${it.i}"><div class="c-main"><div class="c-word" lang="ja">${ruby(it.w)}</div><div class="c-mean"><span class="blurable">${esc(it.m)}</span>${lvTag(it)}</div></div><button type="button" class="say" data-say="w" aria-label="발음 듣기">${ICON.speaker}</button>${favBtn(it)}${stampHTML(it, 'sm')}</div>`;
+  return `<div class="crow" data-i="${it.i}" aria-expanded="false"><span class="c-chev">${ICON.down}</span><div class="c-main"><div class="c-word" lang="ja">${ruby(it.w)}</div><div class="c-mean"><span class="blurable">${esc(it.m)}</span>${lvTag(it)}</div></div><button type="button" class="say" data-say="w" aria-label="발음 듣기">${ICON.speaker}</button>${favBtn(it)}${stampHTML(it, 'sm')}</div>`;
+}
+/* tap a list row to open the rest of its card (dialogue, tip, conjugation table) right below it */
+function toggleRow(row){
+  const nx = row.nextElementSibling;
+  if(nx && nx.classList.contains('cexp')){ nx.remove(); row.classList.remove('open'); row.setAttribute('aria-expanded', 'false'); return; }
+  const it = ITEMS[+row.dataset.i]; if(!it) return;
+  row.classList.add('open'); row.setAttribute('aria-expanded', 'true');
+  row.insertAdjacentHTML('afterend', `<div class="cexp" data-i="${it.i}">${it.f ? formHTML(it) : ''}${exampleHTML(it, true)}${moreHTML(it)}</div>`);
 }
 function mixBar(list, thin){
   const n = list.length || 1;
@@ -1004,21 +1054,21 @@ function renderHome(){
   const startLabel = due ? '복습 시작' : (nl ? '새 단어 공부 시작' : '오늘 할 복습을 모두 끝냈어요');
   viewEl.innerHTML = `<div class="wrap"><div class="home">
     <section class="panel hero">
-      <p class="eyebrow">오늘의 복습</p>
+      <p class="eyebrow">오늘의 공부</p>
       <div class="hero-nums"><div><span class="big">${due}</span><span class="unit">복습할 단어</span></div><div><span class="big">${nl}</span><span class="unit">새 단어</span></div></div>
       <p class="scope">새 단어 범위: ${esc(scopeLabel(rv))}</p>
-      <button type="button" class="btn primary block" data-act="startReview" ${due + nl ? '' : 'disabled'}>${startLabel}</button>
+      ${heroBtns(due, nl)}
       ${resume ? resumeBtn() : ''}
     </section>
     <section class="panel">
       <h2 class="ph">이번 주<small>연속 ${streak()}일째</small></h2>
       <div class="week">${week}</div>
-      <div class="stats"><div class="stat"><b>${counts[t] || 0}</b><span>오늘 본 카드</span></div><div class="stat"><b>${known}</b><span>외운 단어</span></div><div class="stat"><b>${ITEMS.length - Object.keys(srs).length}</b><span>아직 안 본 단어</span></div></div>
+      <div class="stats"><div class="stat"><b>${counts[t] || 0}</b><span>오늘 본 카드</span></div><div class="stat"><b>${known}</b><span>외운 단어</span></div><div class="stat"><b>${ITEMS.length - Object.keys(srs).length}</b><span>안 본 단어</span></div></div>
     </section>
     <section class="panel">
       <h2 class="ph">레벨별 진도</h2>
       ${lvRow('N5')}${lvRow('N4')}
-      <div class="legend"><span><i style="background:var(--shu)"></i>외움</span><span><i style="background:var(--ink-soft);opacity:.55"></i>학습 중</span><span><i style="background:var(--chip)"></i>아직 안 봄</span></div>
+      <div class="legend"><span><i style="background:var(--ink)"></i>외움</span><span><i style="background:var(--ink-soft);opacity:.55"></i>학습 중</span><span><i style="background:var(--chip)"></i>아직 안 봄</span></div>
     </section>
     <section class="quick">
       <button type="button" class="qtile" data-mine="wrong">${ICON.note}<b>오답 노트 ${Object.keys(wrong).length}</b><span>틀린 단어를 모아서 다시 봐요</span></button>
@@ -1143,14 +1193,14 @@ function speakFront(){
 }
 function startReview(){
   const due = dueItems().map(it => it.id);
-  const news = newPool().slice(0, newLeft()).map(it => it.id);
+  const news = [];   // new words now go through startLearn()
   const ids = [];
   let di = 0, ni = 0;
   while(di < due.length || ni < news.length){        // 복습 3장마다 새 단어 1장씩 섞어요
     for(let k = 0; k < 3 && di < due.length; k++) ids.push(due[di++]);
     if(ni < news.length) ids.push(news[ni++]);
   }
-  if(!ids.length){ toast(newPool().length ? '오늘의 새 단어를 모두 봤어요. 설정에서 하루 새 단어 수를 늘릴 수 있어요.' : '이 범위의 단어를 모두 시작했어요. 새 단어 범위를 바꿔 보세요.'); return; }
+  if(!ids.length){ startLearn(); return; }
   startSession('review', ids, '오늘의 복습');
 }
 function rateCurrent(r){
@@ -1241,10 +1291,10 @@ function renderReview(){
   const resume = session && !session.done && session.idx < session.queue.length;
   viewEl.innerHTML = `<div class="wrap narrow"><div class="stack">
     <section class="panel hero">
-      <p class="eyebrow">오늘의 복습</p>
+      <p class="eyebrow">오늘의 공부</p>
       <div class="hero-nums"><div><span class="big">${due}</span><span class="unit">복습할 단어</span></div><div><span class="big">${nl}</span><span class="unit">새 단어</span></div></div>
-      <p class="scope">카드를 보고 ‘모름 / 애매 / 앎’을 고르면, 그에 맞춰 다음에 다시 볼 날을 정해 줘요.</p>
-      <button type="button" class="btn primary block" data-act="startReview" ${due + nl ? '' : 'disabled'}>${due ? '복습 시작' : (nl ? '새 단어 공부 시작' : '오늘 할 복습을 모두 끝냈어요')}</button>
+      <p class="scope">복습은 카드를 보고 ‘모름 / 애매 / 앎’을 골라요. 새 단어는 5개씩 살펴본 뒤 바로 문제로 확인해요.</p>
+      ${heroBtns(due, nl)}
       ${resume ? resumeBtn('margin-top:10px') : ''}
     </section>
     <section class="panel">
@@ -1379,7 +1429,7 @@ function buildCheck(){
   qq.ok = qq.placed.map(k => qq.tiles[k]).join('') === qq.units.join('');
   qq.picked = 0;
   if(qq.ok){ quiz.score++; markStudy(false); noteRight(qq.id); }
-  else { quiz.wrong.push(qq.id); rate(qq.id, 0); noteWrong(qq.id); }
+  else { quiz.wrong.push(qq.id); rate(qq.id, 0); noteWrong(qq.id); learnMiss(qq); }
   save(); renderQuiz(); renderTabbar();
   if(qq.ok) speak(sayText(BYID[qq.id], 'w'));
 }
@@ -1419,29 +1469,112 @@ function distractors(it, type){
   }
   return out;
 }
+
+/* ---------- learn flow: introduce a few new words, then check them right away ---------- */
+const LEARN_N = 5;
+const qtOf = qq => (qq && qq.type) || quiz.type;
+function makeQ(it, type){
+  if(type === 'build'){ const b = makeBuildQ(it); b.type = type; return b; }
+  if(type === 'conj'){ const c = makeConjQ(it); c.type = type; return c; }
+  const ctx = { reg:settings.dlgReg, line:it.d ? Math.floor(Math.random() * 2) : 0 }; sentCtx = ctx;
+  return { id:it.id, type, ctx, opts:shuffle([it.id, ...distractors(it, type)]), picked:null };
+}
+function startLearn(){
+  const ids = newPool().slice(0, Math.min(newLeft(), LEARN_N)).map(it => it.id);
+  if(!ids.length){ toast(newPool().length ? '오늘의 새 단어를 모두 배웠어요. 복습 탭에서 하루 새 단어 수를 늘릴 수 있어요.' : '이 범위의 단어를 모두 시작했어요. 복습 탭에서 새 단어 범위를 바꿔 보세요.'); return; }
+  quiz = { type:'meaning', learn:true, learnIds:ids, intro:{ idx:0 }, qs:[], idx:0, score:0, wrong:[], done:false, requeued:{} };
+  if(view !== 'quiz') location.hash = 'quiz'; else render();
+  window.scrollTo(0, 0);
+  speak(sayText(BYID[ids[0]], 'w'));
+}
+function learnStep(d){
+  if(!quiz || !quiz.intro) return;
+  const n = quiz.learnIds.length, k = quiz.intro.idx + d;
+  if(k < 0) return;
+  if(k >= n){
+    const its = quiz.learnIds.map(id => BYID[id]);
+    const second = it => buildOk(it) ? 'build' : qOk(it, 'listen') ? 'listen' : 'reverse';
+    quiz.qs = shuffle(its.slice()).map(it => makeQ(it, 'meaning')).concat(shuffle(its.slice()).map(it => makeQ(it, second(it))));
+    quiz.intro = null; quiz.idx = 0;
+    render(); window.scrollTo(0, 0); speakQuestion(); return;
+  }
+  quiz.intro.idx = k; render(); window.scrollTo(0, 0); speak(sayText(BYID[quiz.learnIds[k]], 'w'));
+}
+/* a wrong answer in the learn flow comes back at the end (at most twice per word) */
+function learnMiss(qq){
+  if(!quiz.learn) return;
+  const n = quiz.requeued[qq.id] || 0; if(n >= 2) return;
+  quiz.requeued[qq.id] = n + 1; quiz.qs.push(makeQ(BYID[qq.id], qq.type));
+}
+/* words answered right every time start at box 2 (3 days); missed ones were already set to "tomorrow" by rate() */
+function learnFinish(){
+  const t = today();
+  quiz.learnIds.forEach(id => { if(!srs[id]){ srs[id] = [2, t + IV[2]]; intro[t] = (intro[t] || 0) + 1; } });
+  if(!days.includes(t)) days.push(t);
+  save();
+}
+const heroBtns = (due, nl) => due
+  ? `<button type="button" class="btn primary block" data-act="startReview">복습 시작</button>${nl ? `<button type="button" class="btn outline block" style="margin-top:10px" data-act="startLearn">새 단어 배우기</button>` : ''}`
+  : nl ? `<button type="button" class="btn primary block" data-act="startLearn">새 단어 배우기</button>`
+  : `<button type="button" class="btn primary block" disabled>오늘 할 공부를 모두 끝냈어요</button>`;
+function renderIntro(){
+  const ids = quiz.learnIds, k = quiz.intro.idx, it = BYID[ids[k]], n = ids.length;
+  viewEl.innerHTML = `<div class="wrap narrow sess">
+    <div class="sess-top">
+      <button type="button" class="icon-btn" data-act="exitQuiz" aria-label="그만하기">${ICON.close}</button>
+      <div class="sess-prog"><div class="meta"><span>새 단어 배우기</span><span>소개 ${k + 1} / ${n}</span></div><div class="line"><span style="width:${k / n * 100}%"></span></div></div>
+      <button type="button" class="icon-btn" data-act="openSettings" aria-label="설정 열기">${ICON.gear}</button>
+    </div>
+    <div class="panel lcard" data-i="${it.i}">
+      <p class="leye">새 단어</p>
+      <div class="lword" lang="ja">${ruby(it.w)}</div>
+      <div class="lrow"><button type="button" class="pill" data-say="w">${ICON.speaker}<span>듣기</span></button>${favBtn(it)}</div>
+      <div class="lmean"><span>${esc(it.m)}</span>${tagsHTML(it)}</div>
+      ${it.f ? formHTML(it) : ''}
+      ${exampleHTML(it, false)}
+      ${it.n ? `<p class="lnote">${ruby(it.n)}</p>` : ''}
+    </div>
+    <div class="lbtns">${k ? `<button type="button" class="btn outline" data-act="learnPrev">이전</button>` : ''}<button type="button" class="btn primary" data-act="learnNext">${k + 1 < n ? '다음 단어' : '확인 문제 풀기'}</button></div>
+    <p class="tip" style="text-align:center">${n}개를 살펴본 다음, 바로 문제로 확인해요.</p>
+  </div>`;
+}
+function renderLearnDone(){
+  const ids = quiz.learnIds, miss = [...new Set(quiz.wrong)], more = Math.min(newLeft(), newPool().length);
+  viewEl.innerHTML = `<div class="wrap narrow sess"><div class="panel done">
+    <div class="big-seal" aria-hidden="true">${miss.length ? '済' : '満'}</div>
+    <h2>새 단어 ${ids.length}개를 배웠어요</h2>
+    <p class="muted">${miss.length ? (miss.length < ids.length ? `헷갈린 ${miss.length}개는 내일, 나머지는 3일 뒤 복습에 나와요.` : '헷갈린 단어는 내일 복습에 다시 나와요.') : '모두 맞혔어요! 3일 뒤 복습에 나와요.'}</p>
+    <div class="wrong-list">${ids.map(id => { const it = BYID[id]; return `<div class="wl"><span class="jp" lang="ja">${ruby(it.w)}</span><span>${esc(it.m)}${miss.includes(id) ? ' · 내일 복습' : ''}</span></div>`; }).join('')}</div>
+    <div class="btns" style="margin-top:18px">
+      ${more ? `<button type="button" class="btn primary block" data-act="startLearn">새 단어 ${Math.min(more, LEARN_N)}개 더 배우기</button>` : ''}
+      <button type="button" class="btn ${more ? 'outline' : 'primary'} block" data-act="learnHome">홈으로</button>
+    </div>
+  </div></div>`;
+}
 function startQuiz(ids){
   const pool = ids ? ids.map(id => BYID[id]) : shuffle(quizPool()).slice(0, qz.count);
   if(pool.length < 1){ toast('이 범위에서는 문제를 만들 수 없어요.'); return; }
-  quiz = { type:qz.type, qs:pool.map(it => { if(qz.type === 'build') return makeBuildQ(it); if(qz.type === 'conj') return makeConjQ(it); const ctx = { reg:settings.dlgReg, line:it.d ? Math.floor(Math.random() * 2) : 0 }; sentCtx = ctx; return { id:it.id, ctx, opts:shuffle([it.id, ...distractors(it, qz.type)]), picked:null }; }), idx:0, score:0, wrong:[], done:false };
+  quiz = { type:qz.type, qs:pool.map(it => makeQ(it, qz.type)), idx:0, score:0, wrong:[], done:false };
   render();
   speakQuestion();
 }
-function speakQuestion(){ if(!quiz || quiz.done) return; const it = BYID[quiz.qs[quiz.idx].id]; if(quiz.type === 'listen') speak(sayText(it, 'w')); else if(quiz.type === 'sentence') speak(sentSay(it, quiz.qs[quiz.idx].ctx)); }
+function speakQuestion(){ if(!quiz || quiz.done || quiz.intro) return; const qq = quiz.qs[quiz.idx], it = BYID[qq.id], ty = qtOf(qq); if(ty === 'listen') speak(sayText(it, 'w')); else if(ty === 'sentence') speak(sentSay(it, qq.ctx)); }
 function pickOption(n){
   const qq = quiz.qs[quiz.idx]; if(!qq || !qq.opts || qq.picked !== null || n >= qq.opts.length) return;
   qq.picked = n;
   const it = BYID[qq.id];
   const right = qq.ans ? qq.opts[n] === qq.ans : qq.opts[n] === qq.id;
   if(right){ quiz.score++; markStudy(false); noteRight(qq.id); }
-  else { quiz.wrong.push(qq.id); rate(qq.id, 0); noteWrong(qq.id); }
+  else { quiz.wrong.push(qq.id); rate(qq.id, 0); noteWrong(qq.id); learnMiss(qq); }
   save(); renderQuiz(); renderTabbar();
-  if(right && quiz.type === 'conj') speak(kana(qq.ans));
-  else if(right && quiz.type !== 'listen' && quiz.type !== 'sentence') speak(sayText(it, 'w'));
+  const ty = qtOf(qq);
+  if(right && ty === 'conj') speak(kana(qq.ans));
+  else if(right && ty !== 'listen' && ty !== 'sentence') speak(sayText(it, 'w'));
 }
 function nextQuestion(){
   if(!quiz) return;
   quiz.idx++;
-  if(quiz.idx >= quiz.qs.length) quiz.done = true;
+  if(quiz.idx >= quiz.qs.length){ quiz.done = true; if(quiz.learn) learnFinish(); }
   render();
   speakQuestion();
 }
@@ -1468,6 +1601,8 @@ function renderQuiz(){
     </div></div>`;
     return;
   }
+  if(quiz.intro){ renderIntro(); return; }
+  if(quiz.done && quiz.learn){ renderLearnDone(); return; }
   if(quiz.done){
     const total = quiz.qs.length;
     viewEl.innerHTML = `<div class="wrap narrow sess"><div class="panel done">
@@ -1482,27 +1617,27 @@ function renderQuiz(){
     </div></div>`;
     return;
   }
-  const qq = quiz.qs[quiz.idx], it = BYID[qq.id], n = quiz.qs.length, answered = qq.picked !== null;
+  const qq = quiz.qs[quiz.idx], it = BYID[qq.id], n = quiz.qs.length, answered = qq.picked !== null, qtype = qtOf(qq);
   let prompt;
-  if(quiz.type === 'meaning') prompt = `<span class="qlabel">이 단어의 뜻은?</span><div class="qbig" lang="ja">${ruby(it.w)}</div><button type="button" class="pill" data-say="w" data-i="${it.i}">${ICON.speaker}<span>듣기</span></button>`;
-  else if(quiz.type === 'reading') prompt = `<span class="qlabel">읽는 법은?</span><div class="qbig" lang="ja">${esc(plain(it.w))}</div>`;
-  else if(quiz.type === 'listen') prompt = `<span class="qlabel">들리는 단어는?</span><button type="button" class="listen" data-say="w" data-i="${it.i}" aria-label="다시 듣기">${ICON.speakerLg}</button><span class="muted" style="font-size:.84rem">눌러서 다시 듣기</span>`;
-  else if(quiz.type === 'sentence') prompt = `<span class="qlabel">들리는 문장의 뜻은?</span><button type="button" class="listen" data-act="replaySentence" aria-label="문장 다시 듣기">${ICON.speakerLg}</button><div class="qtools"><button type="button" class="chip" data-act="toggleSlow" aria-pressed="${settings.slow}">천천히</button>${qq.shown || qq.picked !== null ? '' : `<button type="button" class="chip" data-act="showSentence">글자로 보기</button>`}</div>${qq.shown && qq.picked === null ? `<p class="qsent" lang="ja">${rubyD(sentJa(it, qq.ctx))}</p>` : ''}`;
-  else if(quiz.type === 'conj') prompt = `<span class="qlabel">${CJ_FORMS[qq.form]}은?</span><div class="qbig" lang="ja">${ruby(it.w)}</div><span class="muted" style="font-size:.9rem">${esc(it.m)}</span>`;
-  else if(quiz.type === 'build') prompt = `<span class="qlabel">글자 조각으로 단어를 완성하세요</span><div class="qbig ko">${esc(it.m)}</div>${answered ? '' : `<button type="button" class="pill" data-say="w" data-i="${it.i}">${ICON.speaker}<span>소리 힌트</span></button>`}`;
+  if(qtype === 'meaning') prompt = `<span class="qlabel">이 단어의 뜻은?</span><div class="qbig" lang="ja">${ruby(it.w)}</div><button type="button" class="pill" data-say="w" data-i="${it.i}">${ICON.speaker}<span>듣기</span></button>`;
+  else if(qtype === 'reading') prompt = `<span class="qlabel">읽는 법은?</span><div class="qbig" lang="ja">${esc(plain(it.w))}</div>`;
+  else if(qtype === 'listen') prompt = `<span class="qlabel">들리는 단어는?</span><button type="button" class="listen" data-say="w" data-i="${it.i}" aria-label="다시 듣기">${ICON.speakerLg}</button><span class="muted" style="font-size:.84rem">눌러서 다시 듣기</span>`;
+  else if(qtype === 'sentence') prompt = `<span class="qlabel">들리는 문장의 뜻은?</span><button type="button" class="listen" data-act="replaySentence" aria-label="문장 다시 듣기">${ICON.speakerLg}</button><div class="qtools"><button type="button" class="chip" data-act="toggleSlow" aria-pressed="${settings.slow}">천천히</button>${qq.shown || qq.picked !== null ? '' : `<button type="button" class="chip" data-act="showSentence">글자로 보기</button>`}</div>${qq.shown && qq.picked === null ? `<p class="qsent" lang="ja">${rubyD(sentJa(it, qq.ctx))}</p>` : ''}`;
+  else if(qtype === 'conj') prompt = `<span class="qlabel">${CJ_FORMS[qq.form]}은?</span><div class="qbig" lang="ja">${ruby(it.w)}</div><span class="muted" style="font-size:.9rem">${esc(it.m)}</span>`;
+  else if(qtype === 'build') prompt = `<span class="qlabel">글자 조각으로 단어를 완성하세요</span><div class="qbig ko">${esc(it.m)}</div>${answered ? '' : `<button type="button" class="pill" data-say="w" data-i="${it.i}">${ICON.speaker}<span>소리 힌트</span></button>`}`;
   else prompt = `<span class="qlabel">일본어로는?</span><div class="qbig ko">${esc(it.m)}</div>`;
-  const isConj = quiz.type === 'conj', isBuild = quiz.type === 'build';
+  const isConj = qtype === 'conj', isBuild = qtype === 'build';
   const opts = isBuild ? buildHTML(qq, answered) : qq.opts.map((o, k) => {
     const ok = isConj ? o === qq.ans : o === qq.id;
     const cls = answered ? (ok ? ' right' : (k === qq.picked ? ' wrong' : ' dim')) : '';
-    const label = isConj ? `<span class="jp" lang="ja">${ruby(o)}</span>` : optLabel(BYID[o], quiz.type, qq.ctx);
+    const label = isConj ? `<span class="jp" lang="ja">${ruby(o)}</span>` : optLabel(BYID[o], qtype, qq.ctx);
     return `<button type="button" class="qopt${cls}" data-qopt="${k}" ${answered ? 'disabled' : ''}><span class="num">${k + 1}</span>${label}</button>`;
   }).join('');
   const right = answered && (isBuild ? qq.ok : isConj ? qq.opts[qq.picked] === qq.ans : qq.opts[qq.picked] === qq.id);
   viewEl.innerHTML = `<div class="wrap narrow sess">
     <div class="sess-top">
       <button type="button" class="icon-btn" data-act="exitQuiz" aria-label="퀴즈 그만하기">${ICON.close}</button>
-      <div class="sess-prog"><div class="meta"><span>${QTYPES[quiz.type].name}</span><span>${quiz.idx + 1} / ${n}, 정답 ${quiz.score}</span></div><div class="line"><span style="width:${quiz.idx / n * 100}%"></span></div></div>
+      <div class="sess-prog"><div class="meta"><span>${quiz.learn ? '새 단어 확인' : QTYPES[qtype].name}</span><span>${quiz.idx + 1} / ${n}, 정답 ${quiz.score}</span></div><div class="line"><span style="width:${quiz.idx / n * 100}%"></span></div></div>
       <button type="button" class="icon-btn" data-act="openSettings" aria-label="설정 열기">${ICON.gear}</button>
     </div>
     <div class="qcard">${prompt}</div>
@@ -1599,6 +1734,7 @@ function revealJump(target){
   const find = () => document.querySelector(`#list .item[data-i="${target.i}"], #list .crow[data-i="${target.i}"]`);
   while(!(el = find()) && upos < units.length && guard++ < 300) renderMore();
   if(!el){ toast(settings.hideLearned && status(target.id) === 'known' ? '‘외운 단어 숨기기’가 켜져 있어서 이 카드가 보이지 않아요.' : '카드를 찾지 못했어요.'); return; }
+  if(el.classList.contains('crow') && !el.classList.contains('open')) toggleRow(el);
   el.scrollIntoView({ block:'center' });
   el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
 }
@@ -1611,7 +1747,7 @@ function toggleFav(it){
   const on = !!fav[it.id]; save();
   document.querySelectorAll(`[data-fav][data-i="${it.i}"]`).forEach(b => { b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
   if(view === 'words' && !player && ui.cat === 'mine' && ui.group === 'fav' && !on){
-    document.querySelectorAll(`#list .item[data-i="${it.i}"], #list .crow[data-i="${it.i}"]`).forEach(el => { el.classList.add('leaving'); setTimeout(() => el.remove(), 280); });
+    document.querySelectorAll(`#list .item[data-i="${it.i}"], #list .crow[data-i="${it.i}"], #list .cexp[data-i="${it.i}"]`).forEach(el => { el.classList.add('leaving'); setTimeout(() => el.remove(), 280); });
     renderWordsCounts();
   }
   toast(on ? '즐겨찾기에 넣었어요.' : '즐겨찾기에서 뺐어요.');
@@ -1740,7 +1876,7 @@ document.addEventListener('click', e => {
     const on = toggleKnown(it.id); setStampEls(it, on); renderTabbar();
     if(view === 'words'){
       const w = $('#wactions .wsum'); if(w) renderWordsCounts();
-      if(on && settings.hideLearned) document.querySelectorAll(`.item[data-i="${it.i}"], .crow[data-i="${it.i}"]`).forEach(el => setTimeout(() => { el.classList.add('leaving'); setTimeout(() => el.remove(), 280); }, 380));
+      if(on && settings.hideLearned) document.querySelectorAll(`.item[data-i="${it.i}"], .crow[data-i="${it.i}"], .cexp[data-i="${it.i}"]`).forEach(el => setTimeout(() => { el.classList.add('leaving'); setTimeout(() => el.remove(), 280); }, 380));
     }
     return;
   }
@@ -1783,6 +1919,8 @@ document.addEventListener('click', e => {
   if(fc && !revealed && Date.now() - lastSwipe > 450){ revealed = true; renderSession(); return; }
   const act = t.closest('[data-act]');
   if(act){ doAction(act.dataset.act); return; }
+  const cr = t.closest('.crow');
+  if(cr && !t.closest('button') && !(t.closest('.blurable') && document.body.classList.contains('hide-meaning'))){ toggleRow(cr); return; }
   const bl = t.closest('.blurable');
   if(bl && document.body.classList.contains('hide-meaning')){ const h = bl.closest('.item, .crow'); if(h) h.classList.toggle('peek'); }
 });
@@ -1833,7 +1971,11 @@ function doAction(a){
     case 'nextQuestion': nextQuestion(); break;
     case 'buildCheck': buildCheck(); break;
     case 'buildClear': buildClear(); break;
-    case 'exitQuiz': quiz = null; render(); break;
+    case 'exitQuiz': { const wasLearn = quiz && quiz.learn; quiz = null; if(wasLearn) location.hash = 'home'; else render(); break; }
+    case 'startLearn': startLearn(); break;
+    case 'learnNext': learnStep(1); break;
+    case 'learnPrev': learnStep(-1); break;
+    case 'learnHome': quiz = null; location.hash = 'home'; break;
     case 'retryQuiz': startQuiz(quiz.wrong.slice()); break;
     case 'newQuiz': quiz = null; render(); break;
     case 'reset':
@@ -1900,6 +2042,7 @@ document.addEventListener('keydown', e => {
     if(revealed){ const m = { '1':0, '2':1, '3':2, 'ArrowLeft':0, 'ArrowRight':2 }; if(e.key in m){ e.preventDefault(); rateCurrent(m[e.key]); } }
     return;
   }
+  if(view === 'quiz' && quiz && quiz.intro){ if(e.key === 'Enter' || e.key === 'ArrowRight'){ e.preventDefault(); learnStep(1); } else if(e.key === 'ArrowLeft'){ e.preventDefault(); learnStep(-1); } return; }
   if(view === 'quiz' && quiz && !quiz.done){
     const qq = quiz.qs[quiz.idx];
     if(qq.build && qq.picked === null){ if(e.key === 'Enter'){ e.preventDefault(); buildCheck(); } else if(e.key === 'Backspace'){ e.preventDefault(); buildUntap(qq.placed.length - 1); } }
