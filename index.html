@@ -791,6 +791,13 @@ body.no-omit .omit{display:none}
 
 /* ----- 2026-11 (24): card-review summary uses the same task list as the today screen ----- */
 .tk.fin .tk-n{color:var(--muted)} .rvhero{padding-top:8px} .rvhero .scope{margin:12px 0 14px;font-size:.84rem;color:var(--muted);line-height:1.55}
+
+/* ----- 2026-11 (25): sheets fit the visible screen even when Safari's toolbars are showing ----- */
+/* svh = the viewport height with the browser's bars expanded; older browsers keep the vh value above */
+.sheet{max-height:min(88vh, calc(100svh - env(safe-area-inset-top, 0px) - 16px));overscroll-behavior:contain}
+.sheet-head{position:sticky;top:-8px;z-index:3;background:var(--card);margin:0 -6px 8px;padding:8px 6px}
+.onb{inset:auto 0 0 0;height:100vh;height:100svh;box-sizing:border-box}
+.onb-card{max-height:calc(100svh - 32px)}
 </style>
 </head>
 <body>
@@ -843,7 +850,7 @@ body.no-omit .omit{display:none}
     <button type="button" class="danger" id="resetBtn" data-act="reset">학습 기록 지우기</button>
     <p class="fine">‘학습 기록 지우기’는 복습 기록과 오답 노트를 지워요. 즐겨찾기는 그대로 남아요.</p>
     <p class="fine">복습 간격: ‘모름’은 다음 날, ‘애매’는 지금 간격의 절반 뒤, ‘앎’은 1일 → 3일 → 1주 → 2주 → 1달 → 2달처럼 점점 길게 다시 보여 줘요. 2주 간격에 도달하면 외운 단어로 표시돼요.</p>
-    <p class="fine">N5·N4 표시는 시중 학습 자료를 참고한 대략적인 구분이에요. JLPT는 공식 단어 목록을 공개하지 않아요.</p>
+    <p class="fine">N5·N4 구분은 시중 학습 자료를 참고한 대략적인 기준이에요. JLPT는 공식 단어 목록을 공개하지 않아요.</p>
     <p class="ver" id="verLine"></p>
     <p class="fine">발음은 기기에 설치된 일본어 음성으로 재생돼요. 학습 기록과 설정은 지금 쓰는 기기의 브라우저에만 저장돼요. 다른 기기로 옮기려면 ‘기록 백업’을 쓰세요.</p>
   </div>
@@ -1206,7 +1213,7 @@ function fillVoiceSelect(){
   sel.value = settings.voiceURI && ja.some(v => v.voiceURI === settings.voiceURI) ? settings.voiceURI : '';
 }
 if('speechSynthesis' in window){ findVoice(); try{ speechSynthesis.addEventListener('voiceschanged', findVoice); }catch(e){ speechSynthesis.onvoiceschanged = findVoice; } }
-const APP_VERSION = '2026-11-27 (24)';
+const APP_VERSION = '2026-11-27 (25)';
 let speakTimer = 0;
 function speak(text){
   if(!('speechSynthesis' in window)){ toast('이 브라우저에서는 발음 듣기를 쓸 수 없어요.'); return; }
